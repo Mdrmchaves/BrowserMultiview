@@ -1,8 +1,12 @@
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Interop;
+using System.Windows.Threading;
 using BrowserMultiview.Models;
 using BrowserMultiview.Services;
 
@@ -27,6 +31,11 @@ public partial class MainWindow : Window
 
         NormalizeSizes();
         Relayout();
+
+        _autoHideTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
+        _autoHideTimer.Tick += AutoHideTimer_Tick;
+        AutoHideCheckBox.IsChecked = _config.AutoHideBars;
+        ApplyAutoHideMode();
     }
 
     private void AttachPane(PaneView pane)
@@ -170,6 +179,132 @@ public partial class MainWindow : Window
         NormalizeSizes();
         Relayout();
     }
+
+    #region Bar auto-hide
+
+    // WPF cannot draw over the WebView2 HWNDs (airspace), so revealed bars push the pages down
+    // instead of overlaying them. The cursor is polled because mouse events over a WebView2
+    // go to the browser's own window, not to WPF.
+    private const double RevealZone = 6;                               // DIPs from a top edge
+    private static readonly TimeSpan ShowDelay = TimeSpan.FromMilliseconds(150);
+    private static readonly TimeSpan HideDelay = TimeSpan.FromMilliseconds(700);
+
+    private readonly DispatcherTimer _autoHideTimer;
+    private bool _barsVisible = true;
+    private DateTime _pendingSince = DateTime.MinValue;
+
+    private void AutoHideCheckBox_Click(object sender, RoutedEventArgs e)
+    {
+        _config.AutoHideBars = AutoHideCheckBox.IsChecked == true;
+        ApplyAutoHideMode();
+    }
+
+    private void ApplyAutoHideMode()
+    {
+        if (_config.AutoHideBars)
+        {
+            _autoHideTimer.Start();
+        }
+        else
+        {
+            _autoHideTimer.Stop();
+            SetBarsVisible(true);
+        }
+    }
+
+    private void SetBarsVisible(bool visible)
+    {
+        _barsVisible = visible;
+        _pendingSince = DateTime.MinValue;
+        Toolbar.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+        foreach (var pane in _panes)
+            pane.SetBarVisible(visible);
+    }
+
+    private void AutoHideTimer_Tick(object? sender, EventArgs e)
+    {
+        // Never change layout mid-interaction: splitter drag, open menu, typing in an address box.
+        // (Only text boxes count: a clicked button keeps focus and would pin the bars forever.)
+        if (Mouse.Captured is not null || Keyboard.FocusedElement is TextBox)
+        {
+            _pendingSince = DateTime.MinValue;
+            return;
+        }
+
+        var wanted = CursorOverOurWindow(out var cursor) && (_barsVisible ? IsOverBars(cursor) : IsInRevealZone(cursor));
+        if (wanted == _barsVisible)
+        {
+            _pendingSince = DateTime.MinValue;
+            return;
+        }
+
+        var now = DateTime.UtcNow;
+        if (_pendingSince == DateTime.MinValue)
+            _pendingSince = now;
+        else if (now - _pendingSince >= (wanted ? ShowDelay : HideDelay))
+            SetBarsVisible(wanted);
+    }
+
+    /// <summary>True when the topmost window under the cursor belongs to this window (including WebView2 children).</summary>
+    private bool CursorOverOurWindow(out Point cursor)
+    {
+        cursor = default;
+        if (!NativeMethods.GetCursorPos(out var screen))
+            return false;
+
+        var hwnd = new WindowInteropHelper(this).Handle;
+        var under = NativeMethods.WindowFromPoint(screen);
+        if (hwnd == IntPtr.Zero || NativeMethods.GetAncestor(under, NativeMethods.GA_ROOT) != hwnd)
+            return false;
+
+        cursor = PointFromScreen(new Point(screen.X, screen.Y));
+        return true;
+    }
+
+    private bool IsInRevealZone(Point cursor)
+    {
+        if (cursor.Y >= 0 && cursor.Y < RevealZone)
+            return true;
+
+        return _panes.Any(p => BoundsInWindow(p) is { } r &&
+            cursor.X >= r.Left && cursor.X < r.Right && cursor.Y >= r.Top && cursor.Y < r.Top + RevealZone);
+    }
+
+    private bool IsOverBars(Point cursor)
+    {
+        if (cursor.Y >= 0 && cursor.Y < RevealZone)
+            return true;
+
+        return new FrameworkElement[] { Toolbar }.Concat(_panes.Select(p => p.Bar))
+            .Any(bar => BoundsInWindow(bar) is { } r && r.Contains(cursor));
+    }
+
+    private Rect? BoundsInWindow(FrameworkElement element)
+    {
+        if (!element.IsVisible || element.ActualWidth <= 0)
+            return null;
+        return element.TransformToAncestor(this).TransformBounds(new Rect(element.RenderSize));
+    }
+
+    private static class NativeMethods
+    {
+        public const uint GA_ROOT = 2;
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct POINT { public int X; public int Y; }
+
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool GetCursorPos(out POINT point);
+
+        [DllImport("user32.dll")]
+        public static extern IntPtr WindowFromPoint(POINT point);
+
+        [DllImport("user32.dll")]
+        public static extern IntPtr GetAncestor(IntPtr hwnd, uint flags);
+    }
+
+    #endregion
 
     protected override void OnClosing(CancelEventArgs e)
     {

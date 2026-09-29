@@ -79,6 +79,7 @@ public partial class PaneView : UserControl, IDisposable
         // Persist what the user chose as this pane's URL, not every in-page redirect.
         Config.Url = uri.ToString();
         WebView.Source = uri;
+        WebView.Focus();
     }
 
     private void AddressBox_KeyDown(object sender, KeyEventArgs e)
@@ -91,6 +92,7 @@ public partial class PaneView : UserControl, IDisposable
         else if (e.Key == Key.Escape)
         {
             AddressBox.Text = WebView.Source?.ToString() ?? Config.Url;
+            WebView.Focus();
             e.Handled = true;
         }
     }
@@ -139,6 +141,12 @@ public partial class PaneView : UserControl, IDisposable
 
     private void RemoveButton_Click(object sender, RoutedEventArgs e) =>
         RemoveRequested?.Invoke(this, EventArgs.Empty);
+
+    /// <summary>The navigation bar, for the window's auto-hide logic.</summary>
+    public FrameworkElement Bar => NavBar;
+
+    public void SetBarVisible(bool visible) =>
+        NavBar.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
 
     public void FocusAddressBox()
     {

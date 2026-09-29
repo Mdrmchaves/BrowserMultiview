@@ -16,6 +16,9 @@ public sealed class WorkspaceConfig
 
     public bool IsMaximized { get; set; }
 
+    /// <summary>Hide the toolbar and pane bars until the mouse reaches the top edge (like taskbar auto-hide).</summary>
+    public bool AutoHideBars { get; set; } = true;
+
     public List<PaneConfig> Panes { get; set; } = [];
 
     public static WorkspaceConfig CreateDefault() => new()
