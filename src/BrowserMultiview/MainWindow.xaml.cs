@@ -29,6 +29,7 @@ public partial class MainWindow : Window
 
         AppPaths.EnsureCreated();
         _config = WorkspaceStore.Load();
+        ApplySavedPlacement();
 
         foreach (var paneConfig in _config.Panes)
             AttachPane(new PaneView(paneConfig));
@@ -313,6 +314,18 @@ public partial class MainWindow : Window
 
         [DllImport("user32.dll")]
         public static extern IntPtr GetAncestor(IntPtr hwnd, uint flags);
+
+        public const uint MONITOR_DEFAULTTONULL = 0;
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct RECT { public int Left; public int Top; public int Right; public int Bottom; }
+
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool GetWindowRect(IntPtr hwnd, out RECT rect);
+
+        [DllImport("user32.dll")]
+        public static extern IntPtr MonitorFromRect(ref RECT rect, uint flags);
     }
 
     #endregion
@@ -325,6 +338,94 @@ public partial class MainWindow : Window
 
         SaveNow();
     }
+
+    #region Window placement
+
+    private const double DefaultWidth = 1400;
+    private const double DefaultHeight = 800;
+
+    // Last non-minimized state, so closing while minimized restores maximized/normal correctly.
+    private bool _wasMaximized;
+
+    /// <summary>Applies saved bounds before the window is shown; <see cref="OnSourceInitialized"/> validates them.</summary>
+    private void ApplySavedPlacement()
+    {
+        WindowStartupLocation = WindowStartupLocation.Manual;
+        if (_config.Window is { } b)
+        {
+            Left = b.Left;
+            Top = b.Top;
+            Width = b.Width;
+            Height = b.Height;
+        }
+        else
+        {
+            ApplyDefaultPlacement();
+        }
+
+        _wasMaximized = _config.IsMaximized;
+        LocationChanged += (_, _) => RequestSave();
+        SizeChanged += (_, _) => RequestSave();
+        StateChanged += (_, _) =>
+        {
+            if (WindowState != WindowState.Minimized)
+                _wasMaximized = WindowState == WindowState.Maximized;
+            RequestSave();
+        };
+    }
+
+    /// <summary>Default size, clamped to the primary work area and centered in it.</summary>
+    private void ApplyDefaultPlacement()
+    {
+        var area = SystemParameters.WorkArea;
+        Width = Math.Min(DefaultWidth, area.Width * 0.9);
+        Height = Math.Min(DefaultHeight, area.Height * 0.9);
+        Left = area.Left + (area.Width - Width) / 2;
+        Top = area.Top + (area.Height - Height) / 2;
+    }
+
+    protected override void OnSourceInitialized(EventArgs e)
+    {
+        base.OnSourceInitialized(e);
+
+        // The monitor setup may have changed since the bounds were saved. The virtual screen is only the
+        // bounding box of all monitors (it has holes when they differ in size or are offset), so instead
+        // ask Windows whether the title bar strip, in physical pixels, touches a real monitor.
+        if (_config.Window is not null && !TitleBarIsOnAMonitor())
+            ApplyDefaultPlacement();
+
+        if (_config.IsMaximized)
+            WindowState = WindowState.Maximized;
+    }
+
+    private bool TitleBarIsOnAMonitor()
+    {
+        var hwnd = new WindowInteropHelper(this).Handle;
+        if (!NativeMethods.GetWindowRect(hwnd, out var r))
+            return true; // can't tell; keep the saved placement
+
+        const int stripHeight = 30, inset = 40;
+        var strip = new NativeMethods.RECT
+        {
+            Left = r.Left + inset,
+            Top = r.Top,
+            Right = Math.Max(r.Left + inset + 1, r.Right - inset),
+            Bottom = r.Top + stripHeight,
+        };
+        return NativeMethods.MonitorFromRect(ref strip, NativeMethods.MONITOR_DEFAULTTONULL) != IntPtr.Zero;
+    }
+
+    private void CaptureWindowPlacement()
+    {
+        var bounds = WindowState == WindowState.Normal
+            ? new Rect(Left, Top, ActualWidth, ActualHeight)
+            : RestoreBounds;
+        if (!bounds.IsEmpty && double.IsFinite(bounds.Left) && bounds.Width > 0 && bounds.Height > 0)
+            _config.Window = new WindowBounds(bounds.Left, bounds.Top, bounds.Width, bounds.Height);
+        _config.IsMaximized = _wasMaximized;
+    }
+
+    #endregion
 
     #region Saving
 
@@ -345,6 +446,7 @@ public partial class MainWindow : Window
     {
         _saveTimer.Stop();
         CaptureSizes();
+        CaptureWindowPlacement();
         try
         {
             WorkspaceStore.Save(_config);
