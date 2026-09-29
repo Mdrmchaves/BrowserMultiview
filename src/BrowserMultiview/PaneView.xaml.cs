@@ -103,5 +103,11 @@ public partial class PaneView : UserControl, IDisposable
     private void RemoveButton_Click(object sender, RoutedEventArgs e) =>
         RemoveRequested?.Invoke(this, EventArgs.Empty);
 
+    public void FocusAddressBox()
+    {
+        AddressBox.Focus();
+        AddressBox.SelectAll();
+    }
+
     public void Dispose() => WebView.Dispose();
 }
