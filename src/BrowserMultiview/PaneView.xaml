@@ -1,22 +1,28 @@
 <UserControl x:Class="BrowserMultiview.PaneView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf">
+             xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
+             Background="{StaticResource BackgroundBrush}">
     <DockPanel>
-        <DockPanel x:Name="NavBar" DockPanel.Dock="Top" Margin="2" LastChildFill="True">
-            <Button x:Name="BackButton" DockPanel.Dock="Left" Content="&#x2190;" Width="28" Margin="0,0,2,0"
-                    ToolTip="Voltar" IsEnabled="False" Click="BackButton_Click" />
-            <Button x:Name="RemoveButton" DockPanel.Dock="Right" Content="&#x2715;" Width="28" Margin="2,0,0,0"
-                    ToolTip="Remover painel" Click="RemoveButton_Click" />
-            <Button x:Name="ZoomButton" DockPanel.Dock="Right" MinWidth="44" Margin="2,0,0,0" Padding="4,0"
-                    ToolTip="Zoom do painel (Ctrl + / Ctrl - / Ctrl 0 também funcionam)" Click="ZoomButton_Click" />
-            <Button x:Name="ReloadButton" DockPanel.Dock="Right" Content="&#x21BB;" Width="28" Margin="2,0,0,0"
-                    ToolTip="Recarregar" Click="ReloadButton_Click" />
-            <TextBox x:Name="AddressBox" VerticalContentAlignment="Center" KeyDown="AddressBox_KeyDown" />
-        </DockPanel>
+        <Border x:Name="NavBar" DockPanel.Dock="Top" Background="{StaticResource SurfaceBrush}"
+                BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="4">
+            <DockPanel LastChildFill="True">
+                <Button x:Name="BackButton" DockPanel.Dock="Left" Style="{StaticResource IconButton}" Content="&#xE72B;"
+                        AutomationProperties.Name="Voltar" ToolTip="Voltar" IsEnabled="False" Click="BackButton_Click" />
+                <Button x:Name="ReloadButton" DockPanel.Dock="Left" Style="{StaticResource IconButton}" Content="&#xE72C;"
+                        AutomationProperties.Name="Recarregar" ToolTip="Recarregar" Click="ReloadButton_Click" />
+                <Button x:Name="RemoveButton" DockPanel.Dock="Right" Style="{StaticResource IconButton}" Content="&#xE711;"
+                        AutomationProperties.Name="Remover painel" ToolTip="Remover painel" Click="RemoveButton_Click" />
+                <Button x:Name="ZoomButton" DockPanel.Dock="Right" MinWidth="52" Margin="4,0,0,0" Padding="6,0"
+                        Foreground="{StaticResource MutedTextBrush}"
+                        ToolTip="Zoom do painel (Ctrl + / Ctrl - / Ctrl 0 também funcionam)" Click="ZoomButton_Click" />
+                <TextBox x:Name="AddressBox" Margin="4,0,0,0" KeyDown="AddressBox_KeyDown" />
+            </DockPanel>
+        </Border>
         <Grid>
             <wv2:WebView2 x:Name="WebView" />
             <TextBlock x:Name="ErrorText" Visibility="Collapsed" TextWrapping="Wrap" Margin="12"
+                       Foreground="{StaticResource TextBrush}"
                        HorizontalAlignment="Center" VerticalAlignment="Center" />
         </Grid>
     </DockPanel>

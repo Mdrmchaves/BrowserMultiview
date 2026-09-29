@@ -34,6 +34,9 @@ public partial class PaneView : UserControl, IDisposable
             UserDataFolder = AppPaths.WebViewData,
             ProfileName = ProfileNameFor(config),
         };
+        // Dark instead of the default white while a page loads (matches BackgroundColor in Themes/Dark.xaml).
+        var bg = (System.Windows.Media.Color)FindResource("BackgroundColor");
+        WebView.DefaultBackgroundColor = System.Drawing.Color.FromArgb(bg.R, bg.G, bg.B);
         WebView.CoreWebView2InitializationCompleted += WebView_CoreWebView2InitializationCompleted;
         WebView.SourceChanged += (_, _) => AddressBox.Text = WebView.Source?.ToString() ?? "";
         WebView.NavigationCompleted += (_, _) => BackButton.IsEnabled = WebView.CanGoBack;

@@ -6,6 +6,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
+using System.Windows.Media;
 using System.Windows.Threading;
 using BrowserMultiview.Models;
 using BrowserMultiview.Services;
@@ -72,9 +73,7 @@ public partial class MainWindow : Window
                 {
                     ResizeBehavior = GridResizeBehavior.PreviousAndNext,
                     ResizeDirection = horizontal ? GridResizeDirection.Columns : GridResizeDirection.Rows,
-                    HorizontalAlignment = HorizontalAlignment.Stretch,
-                    VerticalAlignment = VerticalAlignment.Stretch,
-                    Background = SystemColors.ControlDarkBrush,
+                    Style = (Style)FindResource("PaneSplitter"),
                     // The preview adorner would be drawn under the WebView2 HWNDs (airspace); resize live instead.
                     ShowsPreview = false,
                 };
@@ -326,6 +325,12 @@ public partial class MainWindow : Window
 
         [DllImport("user32.dll")]
         public static extern IntPtr MonitorFromRect(ref RECT rect, uint flags);
+
+        public const int DWMWA_USE_IMMERSIVE_DARK_MODE = 20;
+        public const int DWMWA_CAPTION_COLOR = 35;
+
+        [DllImport("dwmapi.dll")]
+        public static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int size);
     }
 
     #endregion
@@ -387,6 +392,7 @@ public partial class MainWindow : Window
     protected override void OnSourceInitialized(EventArgs e)
     {
         base.OnSourceInitialized(e);
+        ApplyDarkTitleBar();
 
         // The monitor setup may have changed since the bounds were saved. The virtual screen is only the
         // bounding box of all monitors (it has holes when they differ in size or are offset), so instead
@@ -396,6 +402,21 @@ public partial class MainWindow : Window
 
         if (_config.IsMaximized)
             WindowState = WindowState.Maximized;
+    }
+
+    /// <summary>
+    /// Dark title bar in the toolbar's color. Both attributes need Windows 11 (build 22000+);
+    /// on older systems the call fails harmlessly and the default title bar stays.
+    /// </summary>
+    private void ApplyDarkTitleBar()
+    {
+        var hwnd = new WindowInteropHelper(this).Handle;
+        var useDark = 1;
+        NativeMethods.DwmSetWindowAttribute(hwnd, NativeMethods.DWMWA_USE_IMMERSIVE_DARK_MODE, ref useDark, sizeof(int));
+
+        var c = ((SolidColorBrush)FindResource("SurfaceBrush")).Color;
+        var colorRef = c.R | (c.G << 8) | (c.B << 16); // COLORREF is 0x00BBGGRR
+        NativeMethods.DwmSetWindowAttribute(hwnd, NativeMethods.DWMWA_CAPTION_COLOR, ref colorRef, sizeof(int));
     }
 
     private bool TitleBarIsOnAMonitor()
