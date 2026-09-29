@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Windows;
+using System.Windows.Controls;
 using BrowserMultiview.Models;
 using BrowserMultiview.Services;
 
@@ -17,6 +18,15 @@ public partial class MainWindow : Window
 
         AppPaths.EnsureCreated();
         _config = WorkspaceStore.Load();
+
+        // Temporary: plain columns until the splitter layout lands.
+        for (var i = 0; i < _config.Panes.Count; i++)
+        {
+            PanesHost.ColumnDefinitions.Add(new ColumnDefinition());
+            var pane = new PaneView(_config.Panes[i]);
+            Grid.SetColumn(pane, i);
+            PanesHost.Children.Add(pane);
+        }
     }
 
     protected override void OnClosing(CancelEventArgs e)
