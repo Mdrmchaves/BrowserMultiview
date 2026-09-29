@@ -14,7 +14,8 @@ namespace BrowserMultiview;
 
 public partial class MainWindow : Window
 {
-    private const double SplitterThickness = 6;
+    // Thin on purpose; it is also the whole grab area, since the WebView2 HWNDs next to it take the mouse.
+    private const double SplitterThickness = 3;
 
     private readonly WorkspaceConfig _config;
     private readonly List<PaneView> _panes = [];
@@ -22,6 +23,9 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+
+        _saveTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+        _saveTimer.Tick += (_, _) => SaveNow();
 
         AppPaths.EnsureCreated();
         _config = WorkspaceStore.Load();
@@ -41,6 +45,7 @@ public partial class MainWindow : Window
     private void AttachPane(PaneView pane)
     {
         pane.RemoveRequested += Pane_RemoveRequested;
+        pane.ConfigChanged += Pane_ConfigChanged;
         _panes.Add(pane);
         PanesHost.Children.Add(pane);
     }
@@ -72,6 +77,7 @@ public partial class MainWindow : Window
                     // The preview adorner would be drawn under the WebView2 HWNDs (airspace); resize live instead.
                     ShowsPreview = false,
                 };
+                splitter.DragCompleted += (_, _) => RequestSave();
                 PlaceInTrack(splitter, horizontal, TrackCount(horizontal) - 1);
                 PanesHost.Children.Add(splitter);
             }
@@ -143,6 +149,7 @@ public partial class MainWindow : Window
 
         NormalizeSizes();
         Relayout();
+        RequestSave();
         pane.FocusAddressBox();
     }
 
@@ -153,6 +160,7 @@ public partial class MainWindow : Window
             ? PaneOrientation.Vertical
             : PaneOrientation.Horizontal;
         Relayout();
+        RequestSave();
     }
 
     private void Pane_RemoveRequested(object? sender, EventArgs e)
@@ -170,6 +178,7 @@ public partial class MainWindow : Window
         CaptureSizes();
 
         pane.RemoveRequested -= Pane_RemoveRequested;
+        pane.ConfigChanged -= Pane_ConfigChanged;
         _panes.Remove(pane);
         _config.Panes.Remove(pane.Config);
         PanesHost.Children.Remove(pane);
@@ -178,6 +187,7 @@ public partial class MainWindow : Window
 
         NormalizeSizes();
         Relayout();
+        RequestSave();
     }
 
     #region Bar auto-hide
@@ -197,6 +207,7 @@ public partial class MainWindow : Window
     {
         _config.AutoHideBars = AutoHideCheckBox.IsChecked == true;
         ApplyAutoHideMode();
+        RequestSave();
     }
 
     private void ApplyAutoHideMode()
@@ -312,6 +323,27 @@ public partial class MainWindow : Window
         if (e.Cancel)
             return;
 
+        SaveNow();
+    }
+
+    #region Saving
+
+    // Saved shortly after every change, not only on close: stopping the debugger or killing
+    // the process skips OnClosing, which used to lose zoom and layout changes.
+    private readonly DispatcherTimer _saveTimer;
+
+    private void Pane_ConfigChanged(object? sender, EventArgs e) => RequestSave();
+
+    /// <summary>Debounced save: bursts of changes (e.g. Ctrl+wheel zoom) produce a single write.</summary>
+    private void RequestSave()
+    {
+        _saveTimer.Stop();
+        _saveTimer.Start();
+    }
+
+    private void SaveNow()
+    {
+        _saveTimer.Stop();
         CaptureSizes();
         try
         {
@@ -319,8 +351,10 @@ public partial class MainWindow : Window
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            // Losing the layout is not worth blocking the user from closing the app.
+            // Losing the layout is not worth crashing or blocking the user over.
             Debug.WriteLine($"Failed to save workspace: {ex}");
         }
     }
+
+    #endregion
 }

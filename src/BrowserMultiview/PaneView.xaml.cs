@@ -19,6 +19,9 @@ public partial class PaneView : UserControl, IDisposable
 
     public event EventHandler? RemoveRequested;
 
+    /// <summary>Raised when something in <see cref="Config"/> changed (URL, zoom) and should be saved.</summary>
+    public event EventHandler? ConfigChanged;
+
     public PaneView(PaneConfig config)
     {
         Config = config;
@@ -41,6 +44,7 @@ public partial class PaneView : UserControl, IDisposable
         {
             Config.Zoom = WebView.ZoomFactor;
             UpdateZoomLabel();
+            ConfigChanged?.Invoke(this, EventArgs.Empty);
         };
         UpdateZoomLabel();
 
@@ -78,6 +82,7 @@ public partial class PaneView : UserControl, IDisposable
 
         // Persist what the user chose as this pane's URL, not every in-page redirect.
         Config.Url = uri.ToString();
+        ConfigChanged?.Invoke(this, EventArgs.Empty);
         WebView.Source = uri;
         WebView.Focus();
     }
@@ -137,6 +142,7 @@ public partial class PaneView : UserControl, IDisposable
         Config.Zoom = Math.Clamp(zoom, PaneConfig.MinZoom, PaneConfig.MaxZoom);
         WebView.ZoomFactor = Config.Zoom;
         UpdateZoomLabel();
+        ConfigChanged?.Invoke(this, EventArgs.Empty);
     }
 
     private void RemoveButton_Click(object sender, RoutedEventArgs e) =>
