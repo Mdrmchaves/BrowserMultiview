@@ -63,12 +63,43 @@ public partial class PaneView : UserControl, IDisposable
 
     private void WebView_CoreWebView2InitializationCompleted(object? sender, CoreWebView2InitializationCompletedEventArgs e)
     {
-        if (!e.IsSuccess)
+        if (e.IsSuccess)
+        {
+            WebView.CoreWebView2.NewWindowRequested += CoreWebView2_NewWindowRequested;
+        }
+        else
         {
             Debug.WriteLine($"WebView2 init failed for pane {Config.Id}: {e.InitializationException}");
             WebView.Visibility = Visibility.Collapsed;
             ErrorText.Text = $"Não foi possível iniciar o WebView2:\n{e.InitializationException?.Message}";
             ErrorText.Visibility = Visibility.Visible;
+        }
+    }
+
+    /// <summary>
+    /// Links/window.open() that ask for a new window go to the system's default browser (http/https only);
+    /// anything else is dropped. Handled=true without NewWindow closes the popup immediately.
+    /// REVIEW: this breaks sites whose login uses an OAuth popup and waits for it via window.opener
+    /// (the popup opens outside the app and can never report back). If a site needs that, handle it by
+    /// setting e.NewWindow to a WebView2 in the same profile instead.
+    /// </summary>
+    private void CoreWebView2_NewWindowRequested(object? sender, CoreWebView2NewWindowRequestedEventArgs e)
+    {
+        e.Handled = true;
+
+        if (!Uri.TryCreate(e.Uri, UriKind.Absolute, out var uri) || !UrlPolicy.IsWebScheme(uri))
+        {
+            Debug.WriteLine($"Blocked new window for non-web URL: {e.Uri}");
+            return;
+        }
+
+        try
+        {
+            Process.Start(new ProcessStartInfo(uri.AbsoluteUri) { UseShellExecute = true });
+        }
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException)
+        {
+            Debug.WriteLine($"Could not open {uri} in the default browser: {ex}");
         }
     }
 
