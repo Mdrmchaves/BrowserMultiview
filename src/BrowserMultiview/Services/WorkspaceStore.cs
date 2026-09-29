@@ -66,6 +66,9 @@ public static class WorkspaceStore
                 pane.Url = "about:blank";
             if (!double.IsFinite(pane.Size) || pane.Size <= 0)
                 pane.Size = 1.0;
+            pane.Zoom = double.IsFinite(pane.Zoom) && pane.Zoom > 0
+                ? Math.Clamp(pane.Zoom, PaneConfig.MinZoom, PaneConfig.MaxZoom)
+                : 1.0;
         }
 
         if (!Enum.IsDefined(config.Orientation))

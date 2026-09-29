@@ -8,6 +8,8 @@
                     ToolTip="Voltar" IsEnabled="False" Click="BackButton_Click" />
             <Button x:Name="RemoveButton" DockPanel.Dock="Right" Content="&#x2715;" Width="28" Margin="2,0,0,0"
                     ToolTip="Remover painel" Click="RemoveButton_Click" />
+            <Button x:Name="ZoomButton" DockPanel.Dock="Right" MinWidth="44" Margin="2,0,0,0" Padding="4,0"
+                    ToolTip="Zoom do painel (Ctrl + / Ctrl - / Ctrl 0 também funcionam)" Click="ZoomButton_Click" />
             <Button x:Name="ReloadButton" DockPanel.Dock="Right" Content="&#x21BB;" Width="28" Margin="2,0,0,0"
                     ToolTip="Recarregar" Click="ReloadButton_Click" />
             <TextBox x:Name="AddressBox" VerticalContentAlignment="Center" KeyDown="AddressBox_KeyDown" />

@@ -35,6 +35,15 @@ public partial class PaneView : UserControl, IDisposable
         WebView.SourceChanged += (_, _) => AddressBox.Text = WebView.Source?.ToString() ?? "";
         WebView.NavigationCompleted += (_, _) => BackButton.IsEnabled = WebView.CanGoBack;
 
+        // Applied by the control once CoreWebView2 initializes; also tracks Ctrl+/Ctrl- zoom.
+        WebView.ZoomFactor = config.Zoom;
+        WebView.ZoomFactorChanged += (_, _) =>
+        {
+            Config.Zoom = WebView.ZoomFactor;
+            UpdateZoomLabel();
+        };
+        UpdateZoomLabel();
+
         AddressBox.Text = config.Url;
         if (UrlPolicy.TryNormalize(config.Url, out var start))
             WebView.Source = start; // triggers implicit initialization with CreationProperties
@@ -98,6 +107,34 @@ public partial class PaneView : UserControl, IDisposable
             WebView.Reload();
         else
             Navigate(Config.Url);
+    }
+
+    private static readonly double[] ZoomPresets = [0.5, 0.67, 0.75, 0.8, 0.9, 1.0, 1.1, 1.25, 1.5];
+
+    private void UpdateZoomLabel() => ZoomButton.Content = $"{Math.Round(Config.Zoom * 100)}%";
+
+    private void ZoomButton_Click(object sender, RoutedEventArgs e)
+    {
+        var menu = new ContextMenu { PlacementTarget = ZoomButton, Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom };
+        foreach (var preset in ZoomPresets)
+        {
+            var item = new MenuItem
+            {
+                Header = $"{Math.Round(preset * 100)}%",
+                IsCheckable = true,
+                IsChecked = Math.Abs(preset - Config.Zoom) < 0.005,
+            };
+            item.Click += (_, _) => SetZoom(preset);
+            menu.Items.Add(item);
+        }
+        menu.IsOpen = true;
+    }
+
+    private void SetZoom(double zoom)
+    {
+        Config.Zoom = Math.Clamp(zoom, PaneConfig.MinZoom, PaneConfig.MaxZoom);
+        WebView.ZoomFactor = Config.Zoom;
+        UpdateZoomLabel();
     }
 
     private void RemoveButton_Click(object sender, RoutedEventArgs e) =>
