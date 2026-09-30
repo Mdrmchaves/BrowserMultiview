@@ -1,4 +1,4 @@
-# BrowserMultiview
+﻿# BrowserMultiview
 
 App desktop para Windows que mostra vários painéis web lado a lado (ou empilhados) numa única janela. Cada painel tem sessão isolada (cookies, localStorage, IndexedDB), então dá para ter, por exemplo, duas contas diferentes do WhatsApp Web abertas ao mesmo tempo.
 
@@ -17,12 +17,12 @@ Ou abra `BrowserMultiview.sln` no Visual Studio 2026 (com a carga de trabalho "D
 
 ## Uso
 
-- **Barras ocultas:** encoste o mouse na borda de cima da janela (ou do topo de um painel) para mostrar a barra principal e as barras de endereço. Dá para desligar em "Ocultar barras automaticamente".
-- **+ Painel / ✕:** adiciona ou remove um painel. **Alternar layout:** lado a lado ↔ empilhado.
+- **Barras ocultas:** encoste o mouse na borda de cima da janela (ou no topo de um painel) e as barras aparecem por cima da página, sem empurrá-la. Com "Ocultar barras automaticamente" desligado, elas ficam fixas acima das páginas.
+- **+ Painel / ✕:** adiciona ou remove um painel. Remover apaga também os dados do painel (login, cookies, cache). **Alternar layout:** lado a lado ↔ empilhado.
 - **Divisor:** arraste para mudar a proporção entre os painéis.
 - **Zoom por painel:** botão com a porcentagem na barra do painel, ou Ctrl + / Ctrl - / Ctrl + roda do mouse.
 - **Endereço:** só http/https; sem esquema, o app usa `https://`.
-- Links que pedem nova janela abrem no navegador padrão do sistema.
+- Links que pedem nova janela abrem no navegador padrão do sistema. Popups com tamanho definido (o jeito comum de abrir login "Entrar com Google" etc.) abrem numa janela do app, no mesmo perfil do painel, mostrando o endereço no topo.
 
 Layout, proporções, URLs, zoom e posição/tamanho da janela são salvos automaticamente (~1 s após cada mudança).
 
@@ -35,10 +35,9 @@ Tudo em `%LOCALAPPDATA%\BrowserMultiview`:
 | `workspace.json` | Painéis, layout, zoom e janela. Se estiver corrompido, o app volta ao padrão e guarda o arquivo como `workspace.json.corrupt-<data>`. |
 | `webview\EBWebView\WV2Profile_pane-<id>\` | Perfil de cada painel (logins, cookies, cache). O `<id>` é o `Id` do painel no `workspace.json`. |
 
-Para "deslogar" um painel do zero, feche o app e apague a pasta `WV2Profile_pane-<id>` dele. Para voltar ao estado inicial, apague a pasta `BrowserMultiview` inteira.
+Para "deslogar" um painel do zero, remova-o e adicione outro. Na inicialização, pastas de perfil de painéis que não existem mais são apagadas (só quando o `workspace.json` foi lido com sucesso). Para voltar ao estado inicial, apague a pasta `BrowserMultiview` inteira.
 
 ## Limitações conhecidas
 
-- Remover um painel **não** apaga a pasta de perfil dele (TODO).
-- Logins que dependem de popup OAuth (`window.opener`) não funcionam, porque o popup abre no navegador do sistema.
-- As barras, ao aparecer, empurram as páginas para baixo em vez de ficar por cima: o WPF não consegue desenhar sobre o WebView2.
+- Um site que abra o popup de login **sem** tamanho definido vai para o navegador do sistema e o login não volta para o app.
+- As barras sobrepostas são janelas separadas: ao mover ou redimensionar a janela principal elas se fecham e reaparecem no próximo passar do mouse. Elas só aparecem com o app em primeiro plano.

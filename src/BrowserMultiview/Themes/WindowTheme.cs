@@ -1,6 +1,8 @@
 using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Media;
+using Microsoft.Web.WebView2.Core;
+using Microsoft.Web.WebView2.Wpf;
 
 namespace BrowserMultiview.Themes;
 
@@ -24,10 +26,21 @@ public static class WindowTheme
         NativeMethods.DwmSetWindowAttribute(hwnd, NativeMethods.DWMWA_CAPTION_COLOR, ref colorRef, sizeof(int));
     }
 
-    /// <summary>Theme background as a System.Drawing color, for WebView2.DefaultBackgroundColor.</summary>
-    public static System.Drawing.Color WebViewBackground(FrameworkElement anyElement)
+    /// <summary>
+    /// Dark WebView background until the first page finishes loading (no white flash on startup), then the
+    /// browser's usual white. DefaultBackgroundColor also shows through pages that don't set a background,
+    /// and many assume white: leaving it dark made their (black) text unreadable.
+    /// </summary>
+    public static void UseDarkBackgroundUntilFirstLoad(WebView2 webView)
     {
-        var bg = (Color)anyElement.FindResource("BackgroundColor");
-        return System.Drawing.Color.FromArgb(bg.R, bg.G, bg.B);
+        var bg = (Color)webView.FindResource("BackgroundColor");
+        webView.DefaultBackgroundColor = System.Drawing.Color.FromArgb(bg.R, bg.G, bg.B);
+
+        void OnFirstLoad(object? sender, CoreWebView2NavigationCompletedEventArgs e)
+        {
+            webView.NavigationCompleted -= OnFirstLoad;
+            webView.DefaultBackgroundColor = System.Drawing.Color.White;
+        }
+        webView.NavigationCompleted += OnFirstLoad;
     }
 }

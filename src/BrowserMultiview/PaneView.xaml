@@ -3,27 +3,35 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
              Background="{StaticResource BackgroundBrush}">
-    <DockPanel>
-        <Border x:Name="NavBar" DockPanel.Dock="Top" Background="{StaticResource SurfaceBrush}"
-                BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="4">
-            <DockPanel LastChildFill="True">
-                <Button x:Name="BackButton" DockPanel.Dock="Left" Style="{StaticResource IconButton}" Content="&#xE72B;"
-                        AutomationProperties.Name="Voltar" ToolTip="Voltar" IsEnabled="False" Click="BackButton_Click" />
-                <Button x:Name="ReloadButton" DockPanel.Dock="Left" Style="{StaticResource IconButton}" Content="&#xE72C;"
-                        AutomationProperties.Name="Recarregar" ToolTip="Recarregar" Click="ReloadButton_Click" />
-                <Button x:Name="RemoveButton" DockPanel.Dock="Right" Style="{StaticResource IconButton}" Content="&#xE711;"
-                        AutomationProperties.Name="Remover painel" ToolTip="Remover painel" Click="RemoveButton_Click" />
-                <Button x:Name="ZoomButton" DockPanel.Dock="Right" MinWidth="52" Margin="4,0,0,0" Padding="6,0"
-                        Foreground="{StaticResource MutedTextBrush}"
-                        ToolTip="Zoom do painel (Ctrl + / Ctrl - / Ctrl 0 também funcionam)" Click="ZoomButton_Click" />
-                <TextBox x:Name="AddressBox" Margin="4,0,0,0" KeyDown="AddressBox_KeyDown" />
-            </DockPanel>
-        </Border>
-        <Grid>
-            <wv2:WebView2 x:Name="WebView" />
-            <TextBlock x:Name="ErrorText" Visibility="Collapsed" TextWrapping="Wrap" Margin="12"
-                       Foreground="{StaticResource TextBrush}"
-                       HorizontalAlignment="Center" VerticalAlignment="Center" />
-        </Grid>
-    </DockPanel>
+    <Grid>
+        <DockPanel>
+            <!-- Docked host for the bar; in auto-hide mode the bar moves into BarPopup instead. -->
+            <Border x:Name="BarSlot" DockPanel.Dock="Top">
+                <Border x:Name="NavBar" Background="{StaticResource SurfaceBrush}"
+                        BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="4">
+                    <DockPanel LastChildFill="True">
+                        <Button x:Name="BackButton" DockPanel.Dock="Left" Style="{StaticResource IconButton}" Content="&#xE72B;"
+                                AutomationProperties.Name="Voltar" ToolTip="Voltar" IsEnabled="False" Click="BackButton_Click" />
+                        <Button x:Name="ReloadButton" DockPanel.Dock="Left" Style="{StaticResource IconButton}" Content="&#xE72C;"
+                                AutomationProperties.Name="Recarregar" ToolTip="Recarregar" Click="ReloadButton_Click" />
+                        <Button x:Name="RemoveButton" DockPanel.Dock="Right" Style="{StaticResource IconButton}" Content="&#xE711;"
+                                AutomationProperties.Name="Remover painel" ToolTip="Remover painel" Click="RemoveButton_Click" />
+                        <Button x:Name="ZoomButton" DockPanel.Dock="Right" MinWidth="52" Margin="4,0,0,0" Padding="6,0"
+                                Foreground="{StaticResource MutedTextBrush}"
+                                ToolTip="Zoom do painel (Ctrl + / Ctrl - / Ctrl 0 também funcionam)" Click="ZoomButton_Click" />
+                        <TextBox x:Name="AddressBox" Margin="4,0,0,0" KeyDown="AddressBox_KeyDown" />
+                    </DockPanel>
+                </Border>
+            </Border>
+            <Grid x:Name="WebHost">
+                <wv2:WebView2 x:Name="WebView" />
+                <TextBlock x:Name="ErrorText" Visibility="Collapsed" TextWrapping="Wrap" Margin="12"
+                           Foreground="{StaticResource TextBrush}"
+                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+            </Grid>
+        </DockPanel>
+        <!-- A popup is its own top-level HWND, so unlike WPF content it can be drawn over the WebView2. -->
+        <Popup x:Name="BarPopup" PlacementTarget="{Binding ElementName=WebHost}" Placement="Relative"
+               AllowsTransparency="False" StaysOpen="True" PopupAnimation="None" />
+    </Grid>
 </UserControl>

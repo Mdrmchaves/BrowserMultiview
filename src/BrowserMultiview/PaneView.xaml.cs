@@ -36,7 +36,7 @@ public partial class PaneView : UserControl, IDisposable
             ProfileName = ProfileNameFor(config),
         };
         // Dark instead of the default white while a page loads.
-        WebView.DefaultBackgroundColor = WindowTheme.WebViewBackground(this);
+        WindowTheme.UseDarkBackgroundUntilFirstLoad(WebView);
         WebView.CoreWebView2InitializationCompleted += WebView_CoreWebView2InitializationCompleted;
         WebView.SourceChanged += (_, _) => AddressBox.Text = WebView.Source?.ToString() ?? "";
         WebView.NavigationCompleted += (_, _) => BackButton.IsEnabled = WebView.CanGoBack;
@@ -79,30 +79,58 @@ public partial class PaneView : UserControl, IDisposable
         }
     }
 
+    private readonly List<PopupWindow> _popups = [];
+
     /// <summary>
-    /// Links/window.open() that ask for a new window go to the system's default browser (http/https only);
-    /// anything else is dropped. Handled=true without NewWindow closes the popup immediately.
-    /// REVIEW: this breaks sites whose login uses an OAuth popup and waits for it via window.opener
-    /// (the popup opens outside the app and can never report back). If a site needs that, handle it by
-    /// setting e.NewWindow to a WebView2 in the same profile instead.
+    /// Requests for a new window:
+    /// - window.open() with an explicit size (how OAuth/login popups are opened) → in-app popup on this
+    ///   pane's profile, so the opener gets its window.opener link and the login lands in this session;
+    /// - everything else (target=_blank links, plain window.open) → system default browser, http/https only.
+    /// Other schemes are dropped. Handled=true without NewWindow closes the popup immediately.
+    /// REVIEW: the size heuristic is what separates the two cases; a site that opens its login popup
+    /// without a size would still go to the external browser and lose window.opener.
     /// </summary>
-    private void CoreWebView2_NewWindowRequested(object? sender, CoreWebView2NewWindowRequestedEventArgs e)
+    private async void CoreWebView2_NewWindowRequested(object? sender, CoreWebView2NewWindowRequestedEventArgs e)
     {
         e.Handled = true;
 
-        if (!Uri.TryCreate(e.Uri, UriKind.Absolute, out var uri) || !UrlPolicy.IsWebScheme(uri))
+        var isSizedPopup = e.WindowFeatures?.HasSize == true;
+        var uriOk = Uri.TryCreate(e.Uri, UriKind.Absolute, out var uri);
+
+        if (isSizedPopup && uriOk && (UrlPolicy.IsWebScheme(uri!) || e.Uri == "about:blank"))
         {
-            Debug.WriteLine($"Blocked new window for non-web URL: {e.Uri}");
+            await OpenInAppPopupAsync(e);
             return;
         }
 
+        if (uriOk && UrlPolicy.IsWebScheme(uri!))
+            ExternalBrowser.Open(uri!);
+        else
+            Debug.WriteLine($"Blocked new window for non-web URL: {e.Uri}");
+    }
+
+    private async Task OpenInAppPopupAsync(CoreWebView2NewWindowRequestedEventArgs e)
+    {
+        // Setting NewWindow must wait for the popup's WebView to initialize, so hold the request open.
+        var deferral = e.GetDeferral();
+        var popup = new PopupWindow(Window.GetWindow(this), e.WindowFeatures);
+        _popups.Add(popup);
+        popup.Closed += (_, _) => _popups.Remove(popup);
+        popup.Show(); // the WebView2 needs a live window to initialize
+
         try
         {
-            Process.Start(new ProcessStartInfo(uri.AbsoluteUri) { UseShellExecute = true });
+            await popup.InitializeAsync(WebView.CoreWebView2.Environment, ProfileNameFor(Config));
+            e.NewWindow = popup.CoreWebView2;
         }
-        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException)
+        catch (Exception ex) when (ex is InvalidOperationException or System.Runtime.InteropServices.COMException or ArgumentException)
         {
-            Debug.WriteLine($"Could not open {uri} in the default browser: {ex}");
+            Debug.WriteLine($"In-app popup failed for pane {Config.Id}: {ex}");
+            popup.Close();
+        }
+        finally
+        {
+            deferral.Complete();
         }
     }
 
@@ -185,8 +213,37 @@ public partial class PaneView : UserControl, IDisposable
     /// <summary>The navigation bar, for the window's auto-hide logic.</summary>
     public FrameworkElement Bar => NavBar;
 
-    public void SetBarVisible(bool visible) =>
-        NavBar.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+    /// <summary>
+    /// Overlay mode moves the bar out of the layout into a popup drawn over the page (shown on demand);
+    /// otherwise the bar is docked above the page and always visible. Only the bar moves, never the WebView.
+    /// </summary>
+    public void SetOverlayMode(bool overlay)
+    {
+        BarPopup.IsOpen = false;
+        if (overlay && BarPopup.Child is null)
+        {
+            BarSlot.Child = null;
+            BarPopup.Child = NavBar;
+        }
+        else if (!overlay && BarSlot.Child is null)
+        {
+            BarPopup.Child = null;
+            NavBar.Width = double.NaN;
+            BarSlot.Child = NavBar;
+        }
+    }
+
+    /// <summary>Opens (or re-positions) the overlay bar at <paramref name="topOffset"/> DIPs below the pane's top.</summary>
+    public void ShowOverlayBar(double topOffset)
+    {
+        NavBar.Width = WebHost.ActualWidth;
+        BarPopup.VerticalOffset = topOffset;
+        // Reopening makes the popup recompute its screen position (it does not follow layout changes).
+        BarPopup.IsOpen = false;
+        BarPopup.IsOpen = true;
+    }
+
+    public void HideOverlayBar() => BarPopup.IsOpen = false;
 
     public void FocusAddressBox()
     {
@@ -212,5 +269,11 @@ public partial class PaneView : UserControl, IDisposable
         Dispose();
     }
 
-    public void Dispose() => WebView.Dispose();
+    public void Dispose()
+    {
+        foreach (var popup in _popups.ToList())
+            popup.Close();
+        BarPopup.IsOpen = false;
+        WebView.Dispose();
+    }
 }

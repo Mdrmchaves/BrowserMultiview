@@ -4,21 +4,26 @@
         Title="BrowserMultiview" MinWidth="400" MinHeight="300"
         Background="{StaticResource BackgroundBrush}" Foreground="{StaticResource TextBrush}">
     <DockPanel>
-        <Border x:Name="Toolbar" DockPanel.Dock="Top" Background="{StaticResource SurfaceBrush}"
-                BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="6,4">
-            <StackPanel Orientation="Horizontal">
-                <Button Content="+ Painel" Margin="0,0,2,0" Click="AddPaneButton_Click" />
-                <Button Content="Alternar layout" Margin="0,0,14,0" Click="ToggleLayoutButton_Click" />
-                <CheckBox x:Name="AutoHideCheckBox" Content="Ocultar barras automaticamente" VerticalAlignment="Center"
-                          ToolTip="As barras reaparecem ao encostar o mouse na borda de cima da janela ou de um painel"
-                          Click="AutoHideCheckBox_Click" />
-            </StackPanel>
+        <!-- Docked host for the toolbar; in auto-hide mode the toolbar moves into ToolbarPopup instead. -->
+        <Border x:Name="ToolbarSlot" DockPanel.Dock="Top">
+            <Border x:Name="Toolbar" Background="{StaticResource SurfaceBrush}"
+                    BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="6,4">
+                <StackPanel Orientation="Horizontal">
+                    <Button Content="+ Painel" Margin="0,0,2,0" Click="AddPaneButton_Click" />
+                    <Button Content="Alternar layout" Margin="0,0,14,0" Click="ToggleLayoutButton_Click" />
+                    <CheckBox x:Name="AutoHideCheckBox" Content="Ocultar barras automaticamente" VerticalAlignment="Center"
+                              ToolTip="As barras aparecem por cima da página ao encostar o mouse na borda de cima da janela ou de um painel"
+                              Click="AutoHideCheckBox_Click" />
+                </StackPanel>
+            </Border>
         </Border>
-        <Grid>
+        <Grid x:Name="ContentArea">
             <Grid x:Name="PanesHost" />
             <TextBlock x:Name="EmptyText" Text="Nenhum painel. Clique em &quot;+ Painel&quot; para adicionar."
                        Foreground="{StaticResource MutedTextBrush}"
                        HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed" />
+            <Popup x:Name="ToolbarPopup" PlacementTarget="{Binding ElementName=ContentArea}" Placement="Relative"
+                   AllowsTransparency="False" StaysOpen="True" PopupAnimation="None" />
         </Grid>
     </DockPanel>
 </Window>

@@ -1,0 +1,21 @@
+<Window x:Class="BrowserMultiview.PopupWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
+        Title="Carregando…" Width="520" Height="640" MinWidth="320" MinHeight="300"
+        ShowInTaskbar="True" WindowStartupLocation="CenterOwner"
+        Background="{StaticResource BackgroundBrush}" Foreground="{StaticResource TextBrush}">
+    <DockPanel>
+        <!-- Read-only address, so the user can always see which site a login popup really is. -->
+        <Border DockPanel.Dock="Top" Background="{StaticResource SurfaceBrush}"
+                BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="10,6">
+            <DockPanel>
+                <TextBlock x:Name="LockIcon" DockPanel.Dock="Left" FontFamily="{StaticResource IconFont}" FontSize="12"
+                           VerticalAlignment="Center" Margin="0,0,8,0" Foreground="{StaticResource MutedTextBrush}" />
+                <TextBox x:Name="AddressText" IsReadOnly="True" BorderThickness="0" Background="Transparent"
+                         Padding="0" MinHeight="0" Foreground="{StaticResource MutedTextBrush}" />
+            </DockPanel>
+        </Border>
+        <wv2:WebView2 x:Name="WebView" />
+    </DockPanel>
+</Window>

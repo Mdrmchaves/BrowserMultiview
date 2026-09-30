@@ -43,12 +43,23 @@ public partial class MainWindow : Window
         _autoHideTimer.Tick += AutoHideTimer_Tick;
         AutoHideCheckBox.IsChecked = _config.AutoHideBars;
         ApplyAutoHideMode();
+
+        // Open popups do not follow the window; close them when it moves, resizes or loses the foreground.
+        LocationChanged += (_, _) => HideOverlayBars();
+        SizeChanged += (_, _) => HideOverlayBars();
+        StateChanged += (_, _) => HideOverlayBars();
+        Deactivated += (_, _) => Dispatcher.BeginInvoke(() =>
+        {
+            if (!NativeMethods.IsOwnWindow(NativeMethods.GetForegroundWindow()))
+                HideOverlayBars();
+        }, DispatcherPriority.Background);
     }
 
     private void AttachPane(PaneView pane)
     {
         pane.RemoveRequested += Pane_RemoveRequested;
         pane.ConfigChanged += Pane_ConfigChanged;
+        pane.SetOverlayMode(OverlayMode);
         _panes.Add(pane);
         PanesHost.Children.Add(pane);
     }
@@ -78,7 +89,7 @@ public partial class MainWindow : Window
                     // The preview adorner would be drawn under the WebView2 HWNDs (airspace); resize live instead.
                     ShowsPreview = false,
                 };
-                splitter.DragCompleted += (_, _) => RequestSave();
+                splitter.DragCompleted += (_, _) => { RequestSave(); RefreshOverlayBarsAfterLayout(); };
                 PlaceInTrack(splitter, horizontal, TrackCount(horizontal) - 1);
                 PanesHost.Children.Add(splitter);
             }
@@ -151,7 +162,15 @@ public partial class MainWindow : Window
         NormalizeSizes();
         Relayout();
         RequestSave();
-        pane.FocusAddressBox();
+        if (OverlayMode)
+        {
+            // The new pane's bar is a popup: open the bars (after layout) so its address box can take focus.
+            Dispatcher.BeginInvoke(() => { ShowOverlayBars(); pane.FocusAddressBox(); }, DispatcherPriority.Loaded);
+        }
+        else
+        {
+            pane.FocusAddressBox();
+        }
     }
 
     private void ToggleLayoutButton_Click(object sender, RoutedEventArgs e)
@@ -162,6 +181,7 @@ public partial class MainWindow : Window
             : PaneOrientation.Horizontal;
         Relayout();
         RequestSave();
+        RefreshOverlayBarsAfterLayout();
     }
 
     private void Pane_RemoveRequested(object? sender, EventArgs e)
@@ -188,53 +208,107 @@ public partial class MainWindow : Window
         NormalizeSizes();
         Relayout();
         RequestSave();
+        RefreshOverlayBarsAfterLayout();
     }
 
-    #region Bar auto-hide
+    #region Bar auto-hide (overlay)
 
-    // WPF cannot draw over the WebView2 HWNDs (airspace), so revealed bars push the pages down
-    // instead of overlaying them. The cursor is polled because mouse events over a WebView2
-    // go to the browser's own window, not to WPF.
+    // With auto-hide on, the toolbar and pane bars live in popups drawn *over* the pages: WPF content
+    // cannot overlap a WebView2 (airspace), but a popup is its own top-level HWND and can. They are shown
+    // when the cursor reaches the top edge of the window or of a pane. The cursor is polled because mouse
+    // events over a WebView2 go to the browser's window, not to WPF. All geometry is in screen coordinates
+    // (GetCursorPos / PointToScreen use the same space) because the bars are not in this window's tree.
+    // With auto-hide off, the bars are docked above the pages and always visible.
     private const double RevealZone = 6;                               // DIPs from a top edge
     private static readonly TimeSpan ShowDelay = TimeSpan.FromMilliseconds(150);
     private static readonly TimeSpan HideDelay = TimeSpan.FromMilliseconds(700);
 
     private readonly DispatcherTimer _autoHideTimer;
-    private bool _barsVisible = true;
+    private bool _barsVisible;
     private DateTime _pendingSince = DateTime.MinValue;
+
+    private bool OverlayMode => _config.AutoHideBars;
 
     private void AutoHideCheckBox_Click(object sender, RoutedEventArgs e)
     {
         _config.AutoHideBars = AutoHideCheckBox.IsChecked == true;
-        ApplyAutoHideMode();
+        // The checkbox itself lives in the toolbar being moved between popup and dock: switch after the click.
+        Dispatcher.BeginInvoke(ApplyAutoHideMode, DispatcherPriority.Background);
         RequestSave();
     }
 
     private void ApplyAutoHideMode()
     {
-        if (_config.AutoHideBars)
-        {
+        HideOverlayBars();
+        SetToolbarOverlay(OverlayMode);
+        foreach (var pane in _panes)
+            pane.SetOverlayMode(OverlayMode);
+
+        if (OverlayMode)
             _autoHideTimer.Start();
-        }
         else
-        {
             _autoHideTimer.Stop();
-            SetBarsVisible(true);
+    }
+
+    private void SetToolbarOverlay(bool overlay)
+    {
+        ToolbarPopup.IsOpen = false;
+        if (overlay && ToolbarPopup.Child is null)
+        {
+            ToolbarSlot.Child = null;
+            ToolbarPopup.Child = Toolbar;
+        }
+        else if (!overlay && ToolbarSlot.Child is null)
+        {
+            ToolbarPopup.Child = null;
+            Toolbar.Width = double.NaN;
+            ToolbarSlot.Child = Toolbar;
         }
     }
 
-    private void SetBarsVisible(bool visible)
+    /// <summary>Opens (or re-positions) all overlay bars: toolbar across the top, each pane's bar at its top edge.</summary>
+    private void ShowOverlayBars()
     {
-        _barsVisible = visible;
+        if (!OverlayMode)
+            return;
+
+        _barsVisible = true;
         _pendingSince = DateTime.MinValue;
-        Toolbar.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+
+        Toolbar.Width = ContentArea.ActualWidth;
+        ToolbarPopup.IsOpen = false;
+        ToolbarPopup.IsOpen = true;
+        // Only laid out once its popup is open; measuring it while closed yields 0.
+        Toolbar.UpdateLayout();
+        var toolbarHeight = Toolbar.ActualHeight;
+
         foreach (var pane in _panes)
-            pane.SetBarVisible(visible);
+        {
+            // Panes touching the top of the window get their bar just below the toolbar.
+            var top = pane.TranslatePoint(new Point(0, 0), ContentArea).Y;
+            pane.ShowOverlayBar(top < 1 ? toolbarHeight : 0);
+        }
+    }
+
+    private void HideOverlayBars()
+    {
+        _barsVisible = false;
+        _pendingSince = DateTime.MinValue;
+        ToolbarPopup.IsOpen = false;
+        foreach (var pane in _panes)
+            pane.HideOverlayBar();
+    }
+
+    /// <summary>After panes move (add/remove/toggle), open popups must be re-positioned; they don't follow layout.</summary>
+    private void RefreshOverlayBarsAfterLayout()
+    {
+        if (_barsVisible)
+            Dispatcher.BeginInvoke(ShowOverlayBars, DispatcherPriority.Loaded);
     }
 
     private void AutoHideTimer_Tick(object? sender, EventArgs e)
     {
-        // Never change layout mid-interaction: splitter drag, open menu, typing in an address box.
+        // Never change anything mid-interaction: splitter drag, open menu, typing in an address box.
         // (Only text boxes count: a clicked button keeps focus and would pin the bars forever.)
         if (Mouse.Captured is not null || Keyboard.FocusedElement is TextBox)
         {
@@ -242,7 +316,10 @@ public partial class MainWindow : Window
             return;
         }
 
-        var wanted = CursorOverOurWindow(out var cursor) && (_barsVisible ? IsOverBars(cursor) : IsInRevealZone(cursor));
+        // Popups are topmost windows: only show them while this app is in the foreground.
+        var wanted = NativeMethods.IsOwnWindow(NativeMethods.GetForegroundWindow())
+            && CursorOverOurWindows(out var cursor)
+            && (_barsVisible ? IsOverBars(cursor) : IsInRevealZone(cursor));
         if (wanted == _barsVisible)
         {
             _pendingSince = DateTime.MinValue;
@@ -253,48 +330,45 @@ public partial class MainWindow : Window
         if (_pendingSince == DateTime.MinValue)
             _pendingSince = now;
         else if (now - _pendingSince >= (wanted ? ShowDelay : HideDelay))
-            SetBarsVisible(wanted);
+        {
+            if (wanted)
+                ShowOverlayBars();
+            else
+                HideOverlayBars();
+        }
     }
 
-    /// <summary>True when the topmost window under the cursor belongs to this window (including WebView2 children).</summary>
-    private bool CursorOverOurWindow(out Point cursor)
+    /// <summary>True when the window under the cursor is ours: this window (incl. WebView2 children) or one of our popups.</summary>
+    private static bool CursorOverOurWindows(out Point cursor)
     {
         cursor = default;
         if (!NativeMethods.GetCursorPos(out var screen))
             return false;
 
-        var hwnd = new WindowInteropHelper(this).Handle;
-        var under = NativeMethods.WindowFromPoint(screen);
-        if (hwnd == IntPtr.Zero || NativeMethods.GetAncestor(under, NativeMethods.GA_ROOT) != hwnd)
-            return false;
-
-        cursor = PointFromScreen(new Point(screen.X, screen.Y));
-        return true;
+        cursor = new Point(screen.X, screen.Y);
+        var root = NativeMethods.GetAncestor(NativeMethods.WindowFromPoint(screen), NativeMethods.GA_ROOT);
+        return NativeMethods.IsOwnWindow(root);
     }
 
-    private bool IsInRevealZone(Point cursor)
+    private bool IsInRevealZone(Point cursor) =>
+        TopStripOnScreen(ContentArea) is { } windowTop && windowTop.Contains(cursor)
+        || _panes.Any(p => TopStripOnScreen(p) is { } paneTop && paneTop.Contains(cursor));
+
+    private bool IsOverBars(Point cursor) =>
+        IsInRevealZone(cursor)
+        || new FrameworkElement[] { Toolbar }.Concat(_panes.Select(p => p.Bar))
+            .Any(bar => BoundsOnScreen(bar) is { } r && r.Contains(cursor));
+
+    private static Rect? TopStripOnScreen(FrameworkElement element) => BoundsOnScreen(element, RevealZone);
+
+    /// <summary>Element bounds in screen coordinates, or null when it is not currently shown.</summary>
+    private static Rect? BoundsOnScreen(FrameworkElement element, double? height = null)
     {
-        if (cursor.Y >= 0 && cursor.Y < RevealZone)
-            return true;
-
-        return _panes.Any(p => BoundsInWindow(p) is { } r &&
-            cursor.X >= r.Left && cursor.X < r.Right && cursor.Y >= r.Top && cursor.Y < r.Top + RevealZone);
-    }
-
-    private bool IsOverBars(Point cursor)
-    {
-        if (cursor.Y >= 0 && cursor.Y < RevealZone)
-            return true;
-
-        return new FrameworkElement[] { Toolbar }.Concat(_panes.Select(p => p.Bar))
-            .Any(bar => BoundsInWindow(bar) is { } r && r.Contains(cursor));
-    }
-
-    private Rect? BoundsInWindow(FrameworkElement element)
-    {
-        if (!element.IsVisible || element.ActualWidth <= 0)
+        if (!element.IsVisible || element.ActualWidth <= 0 || PresentationSource.FromVisual(element) is null)
             return null;
-        return element.TransformToAncestor(this).TransformBounds(new Rect(element.RenderSize));
+        return new Rect(
+            element.PointToScreen(new Point(0, 0)),
+            element.PointToScreen(new Point(element.ActualWidth, height ?? element.ActualHeight)));
     }
 
     #endregion
