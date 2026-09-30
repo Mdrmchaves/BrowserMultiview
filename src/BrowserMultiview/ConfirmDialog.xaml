@@ -1,6 +1,7 @@
 <Window x:Class="BrowserMultiview.ConfirmDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Icon="/Assets/app.ico"
         SizeToContent="WidthAndHeight" ResizeMode="NoResize" ShowInTaskbar="False"
         WindowStartupLocation="CenterOwner" MinWidth="360" MaxWidth="520"
         Background="{StaticResource SurfaceBrush}" Foreground="{StaticResource TextBrush}">

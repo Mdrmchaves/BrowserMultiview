@@ -1,6 +1,7 @@
 <Window x:Class="BrowserMultiview.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Icon="/Assets/app.ico"
         Title="BrowserMultiview" MinWidth="400" MinHeight="300"
         Background="{StaticResource BackgroundBrush}" Foreground="{StaticResource TextBrush}">
     <DockPanel>

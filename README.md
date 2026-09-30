@@ -15,6 +15,16 @@ dotnet run --project src/BrowserMultiview
 
 Ou abra `BrowserMultiview.sln` no Visual Studio 2026 (com a carga de trabalho "Desenvolvimento para desktop com .NET") e aperte F5. Abra pela solução, não pela pasta.
 
+## Gerar o exe
+
+```
+powershell -ExecutionPolicy Bypass -File .\publish.ps1 -Run
+```
+
+Gera um único `BrowserMultiview.exe` (~1,4 MB) em `%LOCALAPPDATA%\Programs\BrowserMultiview` e abre o app (`-Run`). Aponte seu atalho para esse exe; rodar o script de novo atualiza o mesmo arquivo. O app precisa estar fechado (o script avisa). Requer o runtime do .NET 10 Desktop no PC; com `-SelfContained` o exe roda sem .NET instalado, mas fica bem maior.
+
+O ícone fica em `src\BrowserMultiview\Assets\app.ico` e é gerado por `tools\make-icon.ps1`.
+
 ## Uso
 
 - **Barras ocultas:** encoste o mouse na borda de cima da janela (ou no topo de um painel) e as barras aparecem por cima da página, sem empurrá-la. Com "Ocultar barras automaticamente" desligado, elas ficam fixas acima das páginas.
