@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -69,6 +70,8 @@ public partial class PaneView : UserControl, IDisposable
         if (e.IsSuccess)
         {
             WebView.CoreWebView2.NewWindowRequested += CoreWebView2_NewWindowRequested;
+            WebView.CoreWebView2.DocumentTitleChanged += (_, _) => UpdateUnreadCount(WebView.CoreWebView2.DocumentTitle);
+            UpdateUnreadCount(WebView.CoreWebView2.DocumentTitle);
         }
         else
         {
@@ -77,6 +80,27 @@ public partial class PaneView : UserControl, IDisposable
             ErrorText.Text = $"Não foi possível iniciar o WebView2:\n{e.InitializationException?.Message}";
             ErrorText.Visibility = Visibility.Visible;
         }
+    }
+
+    /// <summary>Unread count the page reports in its title, or 0.</summary>
+    public int UnreadCount { get; private set; }
+
+    public event EventHandler? UnreadCountChanged;
+
+    // Sites like WhatsApp Web put the unread count in the title as "(3) WhatsApp". Reading the title
+    // needs no script injection. Whatever the site leaves out (e.g. muted chats) is not counted.
+    [GeneratedRegex(@"^\s*\((\d+)\)")]
+    private static partial Regex TitleUnreadCount();
+
+    private void UpdateUnreadCount(string? title)
+    {
+        var match = TitleUnreadCount().Match(title ?? "");
+        var count = match.Success && int.TryParse(match.Groups[1].Value, out var n) ? n : 0;
+        if (count == UnreadCount)
+            return;
+
+        UnreadCount = count;
+        UnreadCountChanged?.Invoke(this, EventArgs.Empty);
     }
 
     private readonly List<PopupWindow> _popups = [];

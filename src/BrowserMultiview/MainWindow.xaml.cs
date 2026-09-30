@@ -59,6 +59,7 @@ public partial class MainWindow : Window
     {
         pane.RemoveRequested += Pane_RemoveRequested;
         pane.ConfigChanged += Pane_ConfigChanged;
+        pane.UnreadCountChanged += Pane_UnreadCountChanged;
         pane.SetOverlayMode(OverlayMode);
         _panes.Add(pane);
         PanesHost.Children.Add(pane);
@@ -200,10 +201,12 @@ public partial class MainWindow : Window
 
         pane.RemoveRequested -= Pane_RemoveRequested;
         pane.ConfigChanged -= Pane_ConfigChanged;
+        pane.UnreadCountChanged -= Pane_UnreadCountChanged;
         _panes.Remove(pane);
         _config.Panes.Remove(pane.Config);
         PanesHost.Children.Remove(pane);
         pane.DeleteProfileAndDispose();
+        UpdateUnreadBadge();
 
         NormalizeSizes();
         Relayout();
@@ -381,6 +384,28 @@ public partial class MainWindow : Window
 
         SaveNow();
     }
+
+    #region Unread badge
+
+    private const string BaseTitle = "BrowserMultiview";
+    private int _shownUnread = -1;
+
+    private void Pane_UnreadCountChanged(object? sender, EventArgs e) => UpdateUnreadBadge();
+
+    /// <summary>Total unread across panes: red badge on the taskbar button and "(n)" in the window title.</summary>
+    private void UpdateUnreadBadge()
+    {
+        var total = _panes.Sum(p => p.UnreadCount);
+        if (total == _shownUnread)
+            return;
+
+        _shownUnread = total;
+        TaskbarInfo.Overlay = total > 0 ? UnreadBadge.Create(total) : null;
+        TaskbarInfo.Description = total > 0 ? $"{total} não lida(s)" : "";
+        Title = total > 0 ? $"({total}) {BaseTitle}" : BaseTitle;
+    }
+
+    #endregion
 
     #region Full screen (F11)
 

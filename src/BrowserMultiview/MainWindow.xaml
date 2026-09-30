@@ -4,6 +4,10 @@
         Icon="/Assets/app.ico"
         Title="BrowserMultiview" MinWidth="400" MinHeight="300"
         Background="{StaticResource BackgroundBrush}" Foreground="{StaticResource TextBrush}">
+    <Window.TaskbarItemInfo>
+        <!-- Overlay shows the total unread count on the taskbar button. -->
+        <TaskbarItemInfo x:Name="TaskbarInfo" />
+    </Window.TaskbarItemInfo>
     <DockPanel>
         <!-- Docked host for the toolbar; in auto-hide mode the toolbar moves into ToolbarPopup instead. -->
         <Border x:Name="ToolbarSlot" DockPanel.Dock="Top">
