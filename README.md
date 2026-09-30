@@ -20,6 +20,7 @@ Ou abra `BrowserMultiview.sln` no Visual Studio 2026 (com a carga de trabalho "D
 - **Barras ocultas:** encoste o mouse na borda de cima da janela (ou no topo de um painel) e as barras aparecem por cima da página, sem empurrá-la. Com "Ocultar barras automaticamente" desligado, elas ficam fixas acima das páginas.
 - **+ Painel / ✕:** adiciona ou remove um painel. Remover apaga também os dados do painel (login, cookies, cache). **Alternar layout:** lado a lado ↔ empilhado.
 - **Divisor:** arraste para mudar a proporção entre os painéis.
+- **Tela cheia:** F11 (ou o botão "Tela cheia") esconde a barra de título e cobre a tela inteira, como no navegador. F11 de novo volta ao normal. Não fica salvo: o app sempre abre em janela.
 - **Zoom por painel:** botão com a porcentagem na barra do painel, ou Ctrl + / Ctrl - / Ctrl + roda do mouse.
 - **Endereço:** só http/https; sem esquema, o app usa `https://`.
 - Links que pedem nova janela abrem no navegador padrão do sistema. Popups com tamanho definido (o jeito comum de abrir login "Entrar com Google" etc.) abrem numa janela do app, no mesmo perfil do painel, mostrando o endereço no topo.

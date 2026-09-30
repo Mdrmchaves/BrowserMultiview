@@ -10,7 +10,9 @@
                     BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="6,4">
                 <StackPanel Orientation="Horizontal">
                     <Button Content="+ Painel" Margin="0,0,2,0" Click="AddPaneButton_Click" />
-                    <Button Content="Alternar layout" Margin="0,0,14,0" Click="ToggleLayoutButton_Click" />
+                    <Button Content="Alternar layout" Margin="0,0,2,0" Click="ToggleLayoutButton_Click" />
+                    <Button x:Name="FullScreenButton" Content="Tela cheia" Margin="0,0,14,0" ToolTip="F11"
+                            Click="FullScreenButton_Click" />
                     <CheckBox x:Name="AutoHideCheckBox" Content="Ocultar barras automaticamente" VerticalAlignment="Center"
                               ToolTip="As barras aparecem por cima da página ao encostar o mouse na borda de cima da janela ou de um painel"
                               Click="AutoHideCheckBox_Click" />

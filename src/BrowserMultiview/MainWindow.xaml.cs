@@ -382,6 +382,56 @@ public partial class MainWindow : Window
         SaveNow();
     }
 
+    #region Full screen (F11)
+
+    private bool _isFullScreen;
+    private WindowState _stateBeforeFullScreen;
+
+    // F11 pressed inside a page also arrives here: WebView2 raises accelerator keys (function keys
+    // included) as WPF key events, and Handled=true keeps the browser from acting on them.
+    protected override void OnPreviewKeyDown(KeyEventArgs e)
+    {
+        if (e.Key == Key.F11 && Keyboard.Modifiers == ModifierKeys.None)
+        {
+            ToggleFullScreen();
+            e.Handled = true;
+            return;
+        }
+        base.OnPreviewKeyDown(e);
+    }
+
+    private void FullScreenButton_Click(object sender, RoutedEventArgs e) => ToggleFullScreen();
+
+    /// <summary>
+    /// Borderless + maximized covers the whole monitor, taskbar included. Not persisted: like a browser,
+    /// the app always starts windowed, and the saved placement keeps the pre-full-screen state.
+    /// </summary>
+    private void ToggleFullScreen()
+    {
+        HideOverlayBars();
+        if (!_isFullScreen)
+        {
+            _stateBeforeFullScreen = WindowState;
+            _isFullScreen = true;
+            // Maximized must be re-applied after the style change to cover the taskbar.
+            if (WindowState == WindowState.Maximized)
+                WindowState = WindowState.Normal;
+            WindowStyle = WindowStyle.None;
+            ResizeMode = ResizeMode.NoResize;
+            WindowState = WindowState.Maximized;
+        }
+        else
+        {
+            _isFullScreen = false;
+            WindowStyle = WindowStyle.SingleBorderWindow;
+            ResizeMode = ResizeMode.CanResize;
+            WindowState = _stateBeforeFullScreen == WindowState.Maximized ? WindowState.Maximized : WindowState.Normal;
+        }
+        FullScreenButton.Content = _isFullScreen ? "Sair da tela cheia" : "Tela cheia";
+    }
+
+    #endregion
+
     #region Window placement
 
     private const double DefaultWidth = 1400;
@@ -411,7 +461,8 @@ public partial class MainWindow : Window
         SizeChanged += (_, _) => RequestSave();
         StateChanged += (_, _) =>
         {
-            if (WindowState != WindowState.Minimized)
+            // Full screen is also "maximized"; keep the state from before it.
+            if (WindowState != WindowState.Minimized && !_isFullScreen)
                 _wasMaximized = WindowState == WindowState.Maximized;
             RequestSave();
         };
