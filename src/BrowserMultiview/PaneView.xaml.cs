@@ -4,6 +4,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using BrowserMultiview.Models;
 using BrowserMultiview.Services;
+using BrowserMultiview.Themes;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.Wpf;
 
@@ -34,9 +35,8 @@ public partial class PaneView : UserControl, IDisposable
             UserDataFolder = AppPaths.WebViewData,
             ProfileName = ProfileNameFor(config),
         };
-        // Dark instead of the default white while a page loads (matches BackgroundColor in Themes/Dark.xaml).
-        var bg = (System.Windows.Media.Color)FindResource("BackgroundColor");
-        WebView.DefaultBackgroundColor = System.Drawing.Color.FromArgb(bg.R, bg.G, bg.B);
+        // Dark instead of the default white while a page loads.
+        WebView.DefaultBackgroundColor = WindowTheme.WebViewBackground(this);
         WebView.CoreWebView2InitializationCompleted += WebView_CoreWebView2InitializationCompleted;
         WebView.SourceChanged += (_, _) => AddressBox.Text = WebView.Source?.ToString() ?? "";
         WebView.NavigationCompleted += (_, _) => BackButton.IsEnabled = WebView.CanGoBack;
@@ -192,6 +192,24 @@ public partial class PaneView : UserControl, IDisposable
     {
         AddressBox.Focus();
         AddressBox.SelectAll();
+    }
+
+    /// <summary>
+    /// Permanently removes this pane's browsing data (logins, cookies, cache) and closes the pane.
+    /// WebView2 deletes the profile folder when the browser process exits, retrying on later starts
+    /// if files are still locked. If the WebView never initialized, ProfileCleanup catches it at startup.
+    /// </summary>
+    public void DeleteProfileAndDispose()
+    {
+        try
+        {
+            WebView.CoreWebView2?.Profile.Delete();
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or System.Runtime.InteropServices.COMException)
+        {
+            Debug.WriteLine($"Profile.Delete failed for pane {Config.Id}: {ex.Message}");
+        }
+        Dispose();
     }
 
     public void Dispose() => WebView.Dispose();

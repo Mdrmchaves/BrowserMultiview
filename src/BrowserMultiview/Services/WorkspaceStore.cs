@@ -17,9 +17,11 @@ public static class WorkspaceStore
     /// <summary>
     /// Loads the workspace. A missing, unreadable or corrupt file never throws:
     /// a corrupt file is set aside as *.corrupt-&lt;timestamp&gt; and the default config is returned.
+    /// <paramref name="fromFile"/> is false whenever the default was used instead of the saved file.
     /// </summary>
-    public static WorkspaceConfig Load(string? path = null)
+    public static WorkspaceConfig Load(out bool fromFile, string? path = null)
     {
+        fromFile = false;
         path ??= AppPaths.WorkspaceFile;
         if (!File.Exists(path))
             return WorkspaceConfig.CreateDefault();
@@ -28,7 +30,10 @@ public static class WorkspaceStore
         {
             var json = File.ReadAllText(path);
             var config = JsonSerializer.Deserialize<WorkspaceConfig>(json, JsonOptions);
-            return config is null ? WorkspaceConfig.CreateDefault() : Sanitize(config);
+            if (config is null)
+                return WorkspaceConfig.CreateDefault();
+            fromFile = true;
+            return Sanitize(config);
         }
         catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException or NotSupportedException)
         {

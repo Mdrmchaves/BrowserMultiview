@@ -34,16 +34,19 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
-                    <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="5"
-                            Padding="{TemplateBinding Padding}">
-                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
-                    </Border>
+                    <!-- Hover/press lighten whatever the background is, so colored buttons work too. -->
+                    <Grid>
+                        <Border Background="{TemplateBinding Background}" CornerRadius="5" />
+                        <Border x:Name="Tint" Background="White" Opacity="0" CornerRadius="5" />
+                        <ContentPresenter Margin="{TemplateBinding Padding}"
+                                          HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Grid>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource SurfaceHoverBrush}" />
+                            <Setter TargetName="Tint" Property="Opacity" Value="0.08" />
                         </Trigger>
                         <Trigger Property="IsPressed" Value="True">
-                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource SurfacePressedBrush}" />
+                            <Setter TargetName="Tint" Property="Opacity" Value="0.14" />
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter Property="Opacity" Value="0.35" />
@@ -59,6 +62,17 @@
         <Setter Property="FontSize" Value="12" />
         <Setter Property="Width" Value="30" />
         <Setter Property="Padding" Value="0" />
+    </Style>
+
+    <Style x:Key="SecondaryButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+        <Setter Property="Background" Value="{StaticResource SurfaceHoverBrush}" />
+        <Setter Property="MinWidth" Value="96" />
+        <Setter Property="Padding" Value="14,6" />
+    </Style>
+
+    <Style x:Key="DangerButton" TargetType="Button" BasedOn="{StaticResource SecondaryButton}">
+        <Setter Property="Background" Value="#C42B1C" />
+        <Setter Property="Foreground" Value="White" />
     </Style>
 
     <Style TargetType="TextBox">

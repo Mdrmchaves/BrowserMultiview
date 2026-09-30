@@ -1,15 +1,14 @@
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
-using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
-using System.Windows.Media;
 using System.Windows.Threading;
 using BrowserMultiview.Models;
 using BrowserMultiview.Services;
+using BrowserMultiview.Themes;
 
 namespace BrowserMultiview;
 
@@ -29,7 +28,9 @@ public partial class MainWindow : Window
         _saveTimer.Tick += (_, _) => SaveNow();
 
         AppPaths.EnsureCreated();
-        _config = WorkspaceStore.Load();
+        _config = WorkspaceStore.Load(out var loadedFromFile);
+        if (loadedFromFile)
+            ProfileCleanup.DeleteOrphans(_config.Panes.Select(p => p.Id)); // before any WebView2 starts
         ApplySavedPlacement();
 
         foreach (var paneConfig in _config.Panes)
@@ -169,10 +170,10 @@ public partial class MainWindow : Window
             return;
 
         var name = string.IsNullOrWhiteSpace(pane.Config.Title) ? pane.Config.Url : pane.Config.Title;
-        var answer = MessageBox.Show(this,
-            $"Remover o painel \"{name}\"?",
-            "Remover painel", MessageBoxButton.OKCancel, MessageBoxImage.Question);
-        if (answer != MessageBoxResult.OK)
+        if (!ConfirmDialog.Show(this, "Remover painel",
+                $"Remover o painel \"{name}\"?",
+                "Os dados deste painel (login, cookies e cache) também serão apagados. Não dá para desfazer.",
+                "Remover"))
             return;
 
         CaptureSizes();
@@ -182,8 +183,7 @@ public partial class MainWindow : Window
         _panes.Remove(pane);
         _config.Panes.Remove(pane.Config);
         PanesHost.Children.Remove(pane);
-        pane.Dispose();
-        // TODO: delete the removed pane's WebView2 profile data (WV2Profile_pane-<id>); it stays on disk for now.
+        pane.DeleteProfileAndDispose();
 
         NormalizeSizes();
         Relayout();
@@ -297,42 +297,6 @@ public partial class MainWindow : Window
         return element.TransformToAncestor(this).TransformBounds(new Rect(element.RenderSize));
     }
 
-    private static class NativeMethods
-    {
-        public const uint GA_ROOT = 2;
-
-        [StructLayout(LayoutKind.Sequential)]
-        public struct POINT { public int X; public int Y; }
-
-        [DllImport("user32.dll")]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        public static extern bool GetCursorPos(out POINT point);
-
-        [DllImport("user32.dll")]
-        public static extern IntPtr WindowFromPoint(POINT point);
-
-        [DllImport("user32.dll")]
-        public static extern IntPtr GetAncestor(IntPtr hwnd, uint flags);
-
-        public const uint MONITOR_DEFAULTTONULL = 0;
-
-        [StructLayout(LayoutKind.Sequential)]
-        public struct RECT { public int Left; public int Top; public int Right; public int Bottom; }
-
-        [DllImport("user32.dll")]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        public static extern bool GetWindowRect(IntPtr hwnd, out RECT rect);
-
-        [DllImport("user32.dll")]
-        public static extern IntPtr MonitorFromRect(ref RECT rect, uint flags);
-
-        public const int DWMWA_USE_IMMERSIVE_DARK_MODE = 20;
-        public const int DWMWA_CAPTION_COLOR = 35;
-
-        [DllImport("dwmapi.dll")]
-        public static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int size);
-    }
-
     #endregion
 
     protected override void OnClosing(CancelEventArgs e)
@@ -392,7 +356,7 @@ public partial class MainWindow : Window
     protected override void OnSourceInitialized(EventArgs e)
     {
         base.OnSourceInitialized(e);
-        ApplyDarkTitleBar();
+        WindowTheme.ApplyDarkTitleBar(this);
 
         // The monitor setup may have changed since the bounds were saved. The virtual screen is only the
         // bounding box of all monitors (it has holes when they differ in size or are offset), so instead
@@ -402,21 +366,6 @@ public partial class MainWindow : Window
 
         if (_config.IsMaximized)
             WindowState = WindowState.Maximized;
-    }
-
-    /// <summary>
-    /// Dark title bar in the toolbar's color. Both attributes need Windows 11 (build 22000+);
-    /// on older systems the call fails harmlessly and the default title bar stays.
-    /// </summary>
-    private void ApplyDarkTitleBar()
-    {
-        var hwnd = new WindowInteropHelper(this).Handle;
-        var useDark = 1;
-        NativeMethods.DwmSetWindowAttribute(hwnd, NativeMethods.DWMWA_USE_IMMERSIVE_DARK_MODE, ref useDark, sizeof(int));
-
-        var c = ((SolidColorBrush)FindResource("SurfaceBrush")).Color;
-        var colorRef = c.R | (c.G << 8) | (c.B << 16); // COLORREF is 0x00BBGGRR
-        NativeMethods.DwmSetWindowAttribute(hwnd, NativeMethods.DWMWA_CAPTION_COLOR, ref colorRef, sizeof(int));
     }
 
     private bool TitleBarIsOnAMonitor()
